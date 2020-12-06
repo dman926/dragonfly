@@ -15,6 +15,8 @@
 #include "ViewObject.h"
 #include "utility.h"
 
+#include <unordered_set>
+
 df::WorldManager::WorldManager() {
 	setType("WorldManager");
 	df::Vector v = df::pixelsToSpaces(df::Vector(DM.getHorizontalPixels(), DM.getVerticalPixels())), w(DM.getHorizontal(), DM.getVertical());
@@ -70,10 +72,10 @@ int df::WorldManager::startUp() {
 void df::WorldManager::shutDown() {
 	// Destroy all objects in the scene graph.
 	writeLog("", "Killing all Objects.");
-	m_deletions = scene_graph.activeObjects() + scene_graph.inactiveObjects();
+	df::ObjectList m_deletions = getAllObjects();
 	df::ObjectListIterator li(&m_deletions);
 	li.first();
-	while (!li.isDone()) {
+	while (!li.isDone() && li.currentObject()) {
 		delete li.currentObject();
 		li.next();
 	}
@@ -89,38 +91,6 @@ void df::WorldManager::shutDown() {
 }
 
 int df::WorldManager::insertObject(df::Object* p_o) {
-	// Check object is not inserted already
-	df::ObjectList ol = getAllObjects();
-	df::ObjectListIterator li(&ol);
-	li.first();
-	while (!li.isDone() && li.currentObject()) {
-		if (li.currentObject() == p_o) {
-			return 0;
-		}
-		li.next();
-	}
-	// If there are collisions on spawn.
-	if (getCollisions(p_o).getCount() > 0) {
-		df::Vector v;
-		switch (p_o->getOverlapHandle()) {
-		// Object should die.
-		case df::OverlapHandle::DO_NOT_SPAWN:
-			writeLog("ERROR", "Error inserting object '%s %d'. Spawn location overlaps with another object. Ignoring.", p_o->getType().c_str(), p_o->getId());
-			return -1;
-		// Object should try to find a location with 10 units nearby.
-		case df::OverlapHandle::ATTEMPT_TO_MOVE:
-			writeLog("ALERT", "Error inserting object '%s %d'. Collision on change. Attempting to move.", p_o->getType().c_str(), p_o->getId());
-			if (p_o->tryToMove() || getCollisions(p_o).getCount() > 0) {
-				writeLog("ERROR", "No nearby locations found. Ignoring.");
-				return -1;
-			}
-			writeLog("", "Location nearby found. Moved to %s.", df::toString(p_o->getPosition()).c_str());
-			break;
-		// Object should spawn anyways.
-		case df::OverlapHandle::SPAWN_ALWAYS:
-			writeLog("WARN!", "Error inserting object '%s %d'. Collision on change. Inserting anyways. Prepare for a probable crash.", p_o->getType().c_str(), p_o->getId());
-		}
-	}
 	return scene_graph.insertObject(p_o);
 }
 
@@ -161,11 +131,17 @@ void df::WorldManager::update(int step_count) {
 	df::EventStep e_step(step_count);
 	std::string x = "";
 	while (!toUpdate.isDone() && toUpdate.currentObject()) {
-		df::Vector new_pos = toUpdate.currentObject()->predictPosition();
-		if (new_pos != toUpdate.currentObject()->getPosition()) {
-			moveObject(toUpdate.currentObject(), new_pos);
+		if (df::boxIntersectsBox(df::getWorldBox(toUpdate.currentObject()), df::Box(view.getCorner() - 20, view.getHorizontal() + 40, view.getVertical() + 40))) {
+			if (toUpdate.currentObject()->hasGravity()) {
+				df::Vector currentVelocity = toUpdate.currentObject()->getVelocity();
+				toUpdate.currentObject()->setVelocity(df::Vector(currentVelocity.getX(), currentVelocity.getY() + df::GRAVITY));
+			}
+			df::Vector new_pos = toUpdate.currentObject()->predictPosition();
+			if (new_pos != toUpdate.currentObject()->getPosition()) {
+				moveObject(toUpdate.currentObject(), new_pos);
+			}
+			toUpdate.currentObject()->eventHandler(&e_step);
 		}
-		toUpdate.currentObject()->eventHandler(&e_step);
 		toUpdate.next();
 	}
 }
@@ -186,13 +162,13 @@ int df::WorldManager::markForDelete(Object* p_o) {
 
 void df::WorldManager::draw() {
 	// Draw objects in increasing altitude to keep z-index consistent.
-	for (int alt = 0; alt < df::MAX_ALTITUDE; alt++) {
+	for (int alt = 0; alt <= df::MAX_ALTITUDE; alt++) {
 		df::ObjectList ol = scene_graph.activeObjects();
 		df::ObjectListIterator li(&ol);
 		li.first();
 		while (!li.isDone() && li.currentObject()) {
 			// Only draw if on current layer and is (in bounds or a is view object)
-			if (li.currentObject()->getAltitude() == alt && (df::boxIntersectsBox(df::getWorldBox(li.currentObject()), view) || dynamic_cast<df::ViewObject*>(li.currentObject()))) {
+			if (li.currentObject()->getAltitude() == alt && (df::boxIntersectsBox(df::getWorldBox(li.currentObject()), view) || li.currentObject()->isViewObject())) {
 				li.currentObject()->draw();
 			}
 			li.next();
@@ -204,31 +180,114 @@ int df::WorldManager::moveObject(df::Object* p_o, Vector where) {
 	if (!p_o) { // Can't move what doesn't exist.
 		return -1;
 	}
+	df::Box box0 = df::getWorldBox(p_o);
 	// Check for collision that will impede movement.
 	if (p_o->isSolid()) {
-		df::ObjectList list = getCollisions(p_o, where);
-		if (!list.isEmpty()) {
-			bool do_move = true;
-			df::ObjectListIterator li(&list);
-			li.first();
-			while (!li.isDone() && li.currentObject()) {
-				df::Object* p_temp_o = li.currentObject();
-				df::EventCollision c(p_o, p_temp_o, where);
-				// Dispatch collision event to both objects.
-				p_o->eventHandler(&c);
-				p_temp_o->eventHandler(&c);
-				if ((p_o->getSolidness() == df::Solidness::HARD && p_temp_o->getSolidness() == df::Solidness::HARD) || (p_o->getNoSoft() && p_temp_o->getSolidness() == df::Solidness::SOFT)) {
-					do_move = false; // Do not allow movement if both objects are HARD or the main object is impeded by SOFT and the other object is SOFT.
+
+		// Improved collision detection
+		// - multiple steps for greater accuracy
+		// - detects which axis any collision happens on so it can zero the X or Y velocity accordingly, instead of zeroing both
+		//
+		// For example, if an object wants to move X+5, Y+5:
+		// - move 1 step in the X direction, check for collisions
+		//   - if it collided, then it hit a wall
+		// - move 1 step in the Y direction, check for collisions
+		//   - if it collided it hit a floor or ceiling (check y velocity to determine which)
+		// - repeat for however many steps
+
+		int nSteps = 10;
+
+		Vector delta = where - p_o->getPosition();
+		Vector stepDelta = delta / nSteps;
+
+		// use unordered_set instead of vector because the separate X and Y steps could have overlapping collisions
+		std::unordered_set<Object*> collided;
+
+		// the position that the object has been "clear" to move to so far
+		Vector endPos = p_o->getPosition();
+
+		// once a collision on one axis happens, we don't need to check that axis anymore this tick
+		bool canMoveX = true;
+		bool canMoveY = true;
+		for(int step = 0; step < nSteps; step++) {
+			if(!canMoveX && !canMoveY) break;
+
+			float dx = stepDelta.getX();
+			float dy = stepDelta.getY();
+
+			if(canMoveX && dx != 0) {
+				// check for collisions one step in the X
+				df::ObjectList colX = getCollisions(p_o, endPos + df::Vector(dx, 0));
+
+				if(!colX.isEmpty()) {
+					bool do_move = true;
+					df::ObjectListIterator li(&colX);
+					li.first();
+					while(!li.isDone() && li.currentObject()) {
+						df::Object* p_temp_o = li.currentObject();
+
+						collided.insert(p_temp_o);
+						if((p_o->getSolidness() == df::Solidness::HARD && p_temp_o->getSolidness() == df::Solidness::HARD) || (p_o->getNoSoft() && p_temp_o->getSolidness() == df::Solidness::SOFT)) {
+							canMoveX = false; // Do not allow movement if both objects are HARD or the main object is impeded by SOFT and the other object is SOFT.
+						}
+						li.next();
+					}
 				}
-				li.next();
+
+				if(canMoveX) {
+					// clear to move this step
+					endPos = endPos + df::Vector(dx, 0);
+				} else {
+					// collided this step, zero X velocity
+					p_o->setVelocity({0, p_o->getVelocity().getY()});
+				}
 			}
-			if (!do_move) {
-				return -1;
+
+			if(canMoveY && dy != 0) {
+				// check for collisions one step in the Y
+				df::ObjectList colY = getCollisions(p_o, endPos + df::Vector(0, dy));
+
+				if(!colY.isEmpty()) {
+					bool do_move = true;
+					df::ObjectListIterator li(&colY);
+					li.first();
+					while(!li.isDone() && li.currentObject()) {
+						df::Object* p_temp_o = li.currentObject();
+
+						collided.insert(p_temp_o);
+						if((p_o->getSolidness() == df::Solidness::HARD && p_temp_o->getSolidness() == df::Solidness::HARD) || (p_o->getNoSoft() && p_temp_o->getSolidness() == df::Solidness::SOFT)) {
+							canMoveY = false; // Do not allow movement if both objects are HARD or the main object is impeded by SOFT and the other object is SOFT.
+						}
+						li.next();
+					}
+				}
+
+				if(canMoveY) {
+					// clear to move this step
+					endPos = endPos + df::Vector(0, dy);
+				} else {
+					// collided this step, zero Y velocity
+					p_o->setVelocity({p_o->getVelocity().getX(), 0});
+				}
 			}
+
 		}
+
+		// send collision events
+		for(auto& obj : collided) {
+			df::EventCollision c(p_o, obj, endPos);
+			// Dispatch collision event to both objects.
+			p_o->eventHandler(&c);
+			obj->eventHandler(&c);
+		}
+
+		// move to the final position
+		p_o->setPosition(endPos);
+	} else {
+		// non-solid
+		p_o->setPosition(where);
 	}
-	df::Box box0 = df::getWorldBox(p_o);
-	p_o->setPosition(where);
+
 	if (p_view_following == p_o) {
 		float view_center_x = view.getCorner().getX() + view.getHorizontal() / 2;
 		float view_center_y = view.getCorner().getY() + view.getVertical() / 2;
@@ -332,26 +391,28 @@ df::Box df::WorldManager::getView() const {
 
 void df::WorldManager::setViewPosition(df::Vector view_pos) {
 	float x = view_pos.getX() - view.getHorizontal() / 2;
-	if (x + view.getHorizontal() > boundary.getHorizontal()) {
+	if (x + view.getHorizontal() > boundary.getCorner().getX() + boundary.getHorizontal()) {
 		x = boundary.getHorizontal() - view.getHorizontal();
 	}
-	if (x < 0) {
-		x = 0;
+	if (x < boundary.getCorner().getX()) {
+		x = boundary.getCorner().getX();
 	}
 	float y = view_pos.getY() - view.getVertical() / 2;
-	if (y + view.getVertical() > boundary.getVertical()) {
+	if (y + view.getVertical() > boundary.getCorner().getY() + boundary.getVertical()) {
 		y = boundary.getVertical() - view.getVertical();
 	}
-	if (y < 0) {
-		y = 0;
+	if (y < boundary.getCorner().getY()) {
+		y = boundary.getCorner().getY();
 	}
-	df::Vector new_corner(x, y);
-	view.setCorner(new_corner);
+	view.setCorner(df::Vector(x, y));
 }
 
 int df::WorldManager::setViewFollowing(df::Object* p_new_view_following) {
 	if (!p_new_view_following) {
 		p_view_following = NULL;
+		return 0;
+	}
+	if (p_view_following == p_new_view_following) {
 		return 0;
 	}
 	df::ObjectList ol = getAllObjects();

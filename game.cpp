@@ -92,7 +92,7 @@ void unloadResources() {
 }
 
 void populateGameWorld() {
-	new df::TestObject(df::viewToWorld(df::Vector(0, 0)), df::Vector(0.4, 0)); // Draw and out test
+	new df::TestObject(df::viewToWorld(df::Vector(0, 0)), df::Vector(5, 0)); // Draw and out test
 	
 	// Collision test
 	new df::TestObject(df::viewToWorld(df::Vector(20, 20)), df::Vector(0, 0));

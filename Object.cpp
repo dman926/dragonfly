@@ -11,6 +11,7 @@
 #include "LogManager.h"
 #include "ResourceManager.h"
 #include "WorldManager.h"
+#include "DisplayManager.h"
 #include "EventStep.h"
 #include "utility.h"
 
@@ -38,6 +39,8 @@ df::Object::Object() {
 	is_active = true;
 	is_visible = true;
 	overlapHandle = df::OverlapHandle::ATTEMPT_TO_MOVE;
+	has_gravity = false;
+	m_view_object = false;
 	WM.registerInterest(this, df::STEP_EVENT);
 
 	writeLog("", "Spawned. Awaiting sprite or manual insert for world insertion.");
@@ -135,6 +138,14 @@ df::Vector df::Object::getVelocity() const {
 	return v;
 }
 
+void df::Object::hasGravity(bool new_has_gravity) {
+	has_gravity = new_has_gravity;
+}
+
+bool df::Object::hasGravity() const {
+	return has_gravity;
+}
+
 df::Vector df::Object::predictPosition() {
 	df::Vector v = m_position + getVelocity();
 	return (v);
@@ -160,7 +171,7 @@ int df::Object::setSprite(std::string sprite_label) {
 	setBox(m_animation.getBox());
 	sprite_name = sprite_label;
 	// If there are collisions after changing the sprite.
-	if (WM.getCollisions(this).getCount() > 0) {
+	/*if (WM.getCollisions(this).getCount() > 0) {
 		writeLog("ALERT", "Error setting sprite '%s'. Collision on change. Attempting to move.", sprite_label.c_str());
 		if (old_sprite) {
 			if (!tryToMove()) {
@@ -180,7 +191,7 @@ int df::Object::setSprite(std::string sprite_label) {
 				return -1;
 			}
 		}
-	}
+	}*/
 	writeLog("", "Sprite set to '%s'.", sprite_label.c_str());
 	if (!old_sprite) {
 		return WM.insertObject(this);
@@ -192,8 +203,8 @@ void df::Object::setAnimation(Animation new_animation) {
 	m_animation = new_animation;
 }
 
-df::Animation df::Object::getAnimation() const {
-	return m_animation;
+df::Animation* df::Object::getAnimation() {
+	return &m_animation;
 }
 
 void df::Object::setBox(df::Box new_box) {
@@ -205,8 +216,25 @@ df::Box df::Object::getBox() const {
 }
 
 int df::Object::draw() {
+
+	/*float x = getPosition().getX();
+	float y = getPosition().getY();
+	float corner_x = x + getBox().getCorner().getX();
+	float corner_y = y + getBox().getCorner().getY();
+	float horizontal = getBox().getHorizontal();
+	float vert = getBox().getVertical();
+	Vector ul(corner_x, corner_y);
+	Vector ur(corner_x + horizontal, corner_y);
+	Vector ll(corner_x, corner_y + vert);
+	Vector lr(corner_x + horizontal, corner_y + vert);
+	Vector mi(x, y);
+	DM.drawCh(ul, '+', df::Color::WHITE);
+	DM.drawCh(ur, '+', df::Color::WHITE);
+	DM.drawCh(ll, '+', df::Color::WHITE);
+	DM.drawCh(lr, '+', df::Color::WHITE);*/
+
 	if (isVisible() && m_animation.getSprite()) {
-		return m_animation.draw(getPosition());
+		return m_animation.draw(getPosition() - df::Vector((m_animation.getSprite()->getWidth()) / 2.0f, (m_animation.getSprite()->getHeight()) / 2.0f) + df::Vector(0.5f, 0.5f));
 	}
 	return 0;
 }
@@ -215,12 +243,7 @@ int df::Object::registerInterest(df::Object* p_o, std::string event_type) {
 	if (event_count == df::MAX_OBJ_EVENTS) {
 		return -1;
 	}
-	if (event_type == df::STEP_EVENT) {
-		GM.registerInterest(this, event_type);
-	}
-	else {
-		WM.registerInterest(this, event_type);
-	}
+	GM.registerInterest(this, event_type);
 	event_name[event_count] = event_type;
 	event_count++;
 	return 0;
@@ -300,4 +323,25 @@ bool df::Object::tryToMove() {
 	}
 	writeLog("", "Location nearby found. Moved to %f %f", df::toString(v));
 	return true;
+}
+
+bool df::Object::isGrounded() {
+	// probably on the ground if we would collide with something if we moved slightly downwards
+
+	auto obj = WM.getCollisions(this, getPosition() + df::Vector(0, 0.05f));
+	df::ObjectListIterator li(&obj);
+	li.first();
+	while(!li.isDone()) {
+		if(li.currentObject()->getSolidness() == df::Solidness::HARD) return true;
+		li.next();
+	}
+	return false;
+}
+
+void df::Object::setIsViewObject(bool new_is_view_object) {
+	m_view_object = new_is_view_object;
+}
+
+bool df::Object::isViewObject() {
+	return m_view_object;
 }

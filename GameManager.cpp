@@ -7,12 +7,12 @@
 #include "GameManager.h"
 
 // Engine includes.
-#include "LogManager.h"
-#include "Clock.h"
 #include "DisplayManager.h"
 #include "InputManager.h"
-#include "ObjectListIterator.h"
+#include "LogManager.h"
 #include "WorldManager.h"
+#include "Clock.h"
+#include "ObjectListIterator.h"
 #include "EventStep.h"
 
 // System includes.
@@ -57,7 +57,6 @@ int df::GameManager::startUp() {
 		return -1;
 	}
 	df::Manager::startUp();
-	writeLog("", "Started.");
 	return 0;
 }
 
@@ -104,6 +103,7 @@ void df::GameManager::run() {
 			adjust_time = 0;
 		}
 	}
+	WM.getAllObjects();
 	writeLog("ALERT", "---------END GAME LOOP---------");
 }
 

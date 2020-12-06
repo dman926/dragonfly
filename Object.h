@@ -49,7 +49,9 @@ namespace df {
 		std::string event_name[MAX_OBJ_EVENTS]; // The events that can be received by this object.
 		bool is_active; // Don't update if not active
 		bool is_visible; // Don't draw if not visible
-		OverlapHandle overlapHandle; // How to treat this object on spawn 
+		OverlapHandle overlapHandle; // How to treat this object on spawn
+		bool has_gravity; // Is affected by gravity
+		bool m_view_object;
 	protected:
 		// Writes to log with the object type and id being the reporter
 		int writeLog(std::string warn, const char* fmt, ...) const;
@@ -123,6 +125,12 @@ namespace df {
 		// Return predicted position.
 		Vector predictPosition();
 
+		// Set if Object has gravity.
+		void hasGravity(bool new_has_gravity);
+
+		// Get if Object has gravity
+		bool hasGravity() const;
+
 		// Set bounding box of Object.
 		void setBox(Box new_box);
 
@@ -139,7 +147,7 @@ namespace df {
 		void setAnimation(Animation new_animation);
 
 		// Get Animation for this Object.
-		Animation getAnimation() const;
+		Animation* getAnimation();
 
 		// Draw Object Animation.
 		virtual int draw();
@@ -179,6 +187,12 @@ namespace df {
 
 		// Try to move object so it isn't colliding
 		bool tryToMove();
+
+		bool isGrounded();
+
+		void setIsViewObject(bool new_is_view_object = true);
+
+		bool isViewObject();
 	};
 } // end of namespace df
 #endif // __OBJECT_H__

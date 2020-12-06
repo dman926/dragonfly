@@ -129,7 +129,7 @@ int df::DisplayManager::drawCh(Vector world_pos, char ch, Color color) const {
 	case df::Color::WHITE:
 		text.setFillColor(sf::Color::White);
 	}
-	df::Vector pixel_pos = spacesToPixels(world_pos);
+	df::Vector pixel_pos = spacesToPixels(view_pos);
 	text.setPosition(pixel_pos.getX(), pixel_pos.getY());
 	m_p_window->draw(text);
 	return 0;
@@ -227,11 +227,11 @@ bool df::DisplayManager::setBackgroundColor(int new_color) {
 }
 
 float df::charHeight() {
-	return ((float)DM.getHorizontalPixels()) / ((float)DM.getHorizontal());
+	return ((float)DM.getVerticalPixels()) / ((float)DM.getVertical());
 }
 
 float df::charWidth() {
-	return ((float)DM.getVerticalPixels()) / ((float)DM.getVertical());
+	return ((float)DM.getHorizontalPixels()) / ((float)DM.getHorizontal());
 }
 
 df::Vector df::spacesToPixels(Vector spaces) {

@@ -48,7 +48,7 @@ df::Box df::getWorldBox(const df::Object* p_o) {
 }
 
 df::Box df::getWorldBox(const Object* p_o, df::Vector where) {
-	df::Box box = p_o->getAnimation().getBox();
+	df::Box box = ((Object*)p_o)->getBox();
 	return df::Box(where + box.getCorner(), box.getHorizontal(), box.getVertical());
 }
 
@@ -63,13 +63,11 @@ df::Vector df::viewToWorld(df::Vector view_pos) {
 }
 
 std::string df::toString(int i) {
-	return toString((float)i);
+	return std::to_string(i);
 }
 
 std::string df::toString(float i) {
-	std::stringstream ss;
-	ss << i;
-	return ss.str();
+	return std::to_string(i);
 }
 
 std::string df::toString(long i) {
@@ -108,6 +106,11 @@ std::string df::getTimeString() {
 
 int df::rand() {
 	srand(g_next);
-	g_next = ((5 * g_next) + 1) % 16;
-	return g_next;
+	return rand();
+}
+
+int df::rand(unsigned long seed) {
+	srand(seed);
+	g_next = seed;
+	return rand();
 }
