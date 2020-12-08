@@ -7,16 +7,16 @@
 #include "TestObject.h"
 
 // Engine includes
-#include "GameManager.h"
-#include "LogManager.h"
-#include "ResourceManager.h"
-#include "WorldManager.h"
-#include "EventStep.h"
-#include "EventOut.h"
-#include "EventCollision.h"
-#include "EventKeyboard.h"
-#include "EventMouse.h"
-#include "utility.h"
+#include "../GameManager.h"
+#include "../LogManager.h"
+#include "../ResourceManager.h"
+#include "../WorldManager.h"
+#include "../EventStep.h"
+#include "../EventOut.h"
+#include "../EventCollision.h"
+#include "../EventKeyboard.h"
+#include "../EventMouse.h"
+#include "../utility.h"
 
 df::TestObject::TestObject() {
 	setType("TestObject");

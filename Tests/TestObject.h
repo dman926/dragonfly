@@ -8,7 +8,7 @@
 #define __TESTOBJECT_H__
 
 // Engine includes.
-#include "Object.h"
+#include "../Object.h"
 
 namespace df {
 	const std::string TEST_DRAW_STRING = "123 Test";

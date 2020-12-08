@@ -8,7 +8,6 @@
 
 // Engine includes.
 #include "DisplayManager.h"
-#include "../FloorManager.h"
 #include "InputManager.h"
 #include "LogManager.h"
 #include "WorldManager.h"
@@ -85,13 +84,6 @@ void df::GameManager::run() {
 	int adjust_time = 0;
 	m_step_count = 0;
 	writeLog("ALERT", "--------START GAME LOOP--------");
-	if (!FM.isStarted()) {
-		if (FM.startUp()) {
-			writeLog("ERROR", "Error starting FloorManager.");
-			setGameOver();
-			return;
-		}
-	}
 	while (!m_game_over) {
 		m_step_count++;
 
@@ -120,9 +112,6 @@ void df::GameManager::run() {
 		if (adjust_time < 0) {
 			adjust_time = 0;
 		}
-	}
-	if (FM.isStarted()) {
-		FM.shutDown();
 	}
 	WM.getAllObjects();
 	writeLog("ALERT", "---------END GAME LOOP---------");

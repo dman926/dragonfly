@@ -165,7 +165,6 @@
     <ClCompile Include="EventStep.cpp" />
     <ClCompile Include="EventView.cpp" />
     <ClCompile Include="Frame.cpp" />
-    <ClCompile Include="game.cpp" />
     <ClCompile Include="GameManager.cpp" />
     <ClCompile Include="InputManager.cpp" />
     <ClCompile Include="LogManager.cpp" />
@@ -175,10 +174,12 @@
     <ClCompile Include="ObjectList.cpp" />
     <ClCompile Include="ObjectListIterator.cpp" />
     <ClCompile Include="ResourceManager.cpp" />
+    <ClCompile Include="SaveGame.cpp" />
     <ClCompile Include="SceneGraph.cpp" />
     <ClCompile Include="Sound.cpp" />
     <ClCompile Include="Sprite.cpp" />
-    <ClCompile Include="TestObject.cpp" />
+    <ClCompile Include="Tests\game.cpp" />
+    <ClCompile Include="Tests\TestObject.cpp" />
     <ClCompile Include="TextEntry.cpp" />
     <ClCompile Include="utility.cpp" />
     <ClCompile Include="Vector.cpp" />
@@ -209,10 +210,11 @@
     <ClInclude Include="ObjectList.h" />
     <ClInclude Include="ObjectListIterator.h" />
     <ClInclude Include="ResourceManager.h" />
+    <ClInclude Include="SaveGame.h" />
     <ClInclude Include="SceneGraph.h" />
     <ClInclude Include="Sound.h" />
     <ClInclude Include="Sprite.h" />
-    <ClInclude Include="TestObject.h" />
+    <ClInclude Include="Tests\TestObject.h" />
     <ClInclude Include="TextEntry.h" />
     <ClInclude Include="utility.h" />
     <ClInclude Include="Vector.h" />

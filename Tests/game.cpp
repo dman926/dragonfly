@@ -5,11 +5,11 @@
 */
 
 // Engine includes.
-#include "DisplayManager.h"
-#include "LogManager.h"
-#include "GameManager.h"
-#include "ResourceManager.h"
-#include "utility.h"
+#include "../DisplayManager.h"
+#include "../LogManager.h"
+#include "../GameManager.h"
+#include "../ResourceManager.h"
+#include "../utility.h"
 
 // Tests.
 #include "TestObject.h"
